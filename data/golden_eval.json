@@ -1,0 +1,86 @@
+[
+  {
+    "id": "eval_001",
+    "query": "How to resolve HTTP 429 Too Many Requests?",
+    "category": "exact_entity",
+    "expected_source": "api_reference.md",
+    "target_substring": "Retry-After"
+  },
+  {
+    "id": "eval_002",
+    "query": "What should I do if PyTorch throws CUDA_OUT_OF_MEMORY during training?",
+    "category": "exact_entity",
+    "expected_source": "troubleshooting.md",
+    "target_substring": "Reduce training batch size"
+  },
+  {
+    "id": "eval_003",
+    "query": "psycopg2.OperationalError: could not connect to server: Connection refused",
+    "category": "exact_entity",
+    "expected_source": "troubleshooting.md",
+    "target_substring": "listen_addresses"
+  },
+  {
+    "id": "eval_004",
+    "query": "How to handle slow reading endpoints and minimize database latency?",
+    "category": "paraphrased_concept",
+    "expected_source": "architecture.md",
+    "target_substring": "Redis cache cluster"
+  },
+  {
+    "id": "eval_005",
+    "query": "Offloading long-running heavy jobs from the web server",
+    "category": "paraphrased_concept",
+    "expected_source": "architecture.md",
+    "target_substring": "Celery task queue"
+  },
+  {
+    "id": "eval_006",
+    "query": "How are customer PDF invoices or heavy extractions executed?",
+    "category": "paraphrased_concept",
+    "expected_source": "architecture.md",
+    "target_substring": "Celery"
+  },
+  {
+    "id": "eval_007",
+    "query": "What format is required for the Authorization header?",
+    "category": "technical_inquiry",
+    "expected_source": "api_reference.md",
+    "target_substring": "Bearer <JWT_TOKEN>"
+  },
+  {
+    "id": "eval_008",
+    "query": "How to prevent duplicate payments when network drops occur?",
+    "category": "technical_inquiry",
+    "expected_source": "api_reference.md",
+    "target_substring": "Idempotency-Key"
+  },
+  {
+    "id": "eval_009",
+    "query": "What status code is returned when an auth token expires?",
+    "category": "exact_entity",
+    "expected_source": "api_reference.md",
+    "target_substring": "HTTP 401 Unauthorized"
+  },
+  {
+    "id": "eval_010",
+    "query": "Fix for HTTP 504 Gateway Timeout in proxy configuration",
+    "category": "exact_entity",
+    "expected_source": "troubleshooting.md",
+    "target_substring": "proxy_read_timeout"
+  },
+  {
+    "id": "eval_011",
+    "query": "How is database multi-tenant data partitioned to avoid disk bottlenecks?",
+    "category": "paraphrased_concept",
+    "expected_source": "architecture.md",
+    "target_substring": "consistent hashing algorithm"
+  },
+  {
+    "id": "eval_012",
+    "query": "What happens when an API token reaches 3600 seconds?",
+    "category": "technical_inquiry",
+    "expected_source": "api_reference.md",
+    "target_substring": "/v1/auth/refresh"
+  }
+]
