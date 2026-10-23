@@ -33,4 +33,11 @@ class HealthResponse(BaseModel):
   status: str
   index_loaded: bool
   total_indexed_chunks: int
-  
+
+class AskResponse(BaseModel):
+  """Response returned by the /ask end-to-end RAG endpoint."""
+  query: str
+  answer: str
+  total_sources: int
+  latency_ms: float
+  sources: list[SearchResultItem]  
