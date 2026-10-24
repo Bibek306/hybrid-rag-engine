@@ -1,12 +1,14 @@
-import sys
 import pickle
+import sys
 from pathlib import Path
 
-# Add project root to path so we can import from app
+# Add project root to sys.path so local app packages import first
 BASE_DIR = Path(__file__).resolve().parent.parent
-sys.path.append(str(BASE_DIR))
+if str(BASE_DIR) not in sys.path:
+    sys.path.insert(0, str(BASE_DIR))
 
 import faiss
+import numpy as np
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from sentence_transformers import SentenceTransformer
 
@@ -19,10 +21,14 @@ def build_indices():
     storage_dir = settings.STORAGE_DIR
     storage_dir.mkdir(parents=True, exist_ok=True)
 
+    if not docs_dir.exists():
+        print(f"Error: Documents directory not found at {docs_dir}")
+        sys.exit(1)
+
     # 1. Discover all source files
     doc_files = list(docs_dir.glob("*.md")) + list(docs_dir.glob("*.txt"))
     if not doc_files:
-        print(f"Error: No documents found in {docs_dir}")
+        print(f"Error: No documents found in {docs_dir}. Place markdown or text files there first.")
         sys.exit(1)
 
     print(f"Discovered {len(doc_files)} document(s) in {docs_dir}:")
@@ -57,6 +63,10 @@ def build_indices():
                 )
                 chunk_id += 1
 
+    if not chunks:
+        print("Error: No text content found across document files to chunk.")
+        sys.exit(1)
+
     print(f"\nGenerated {len(chunks)} total text chunks.")
 
     # 3. Dense Indexing (FAISS)
@@ -71,6 +81,7 @@ def build_indices():
         normalize_embeddings=True,
         show_progress_bar=True
     )
+    embeddings = np.ascontiguousarray(embeddings, dtype=np.float32)
 
     dimension = embeddings.shape[1]
     # IndexFlatIP calculates inner product, which equals cosine similarity on normalized vectors

@@ -1,11 +1,12 @@
-import sys
 import json
+import sys
 import time
 from pathlib import Path
 
-# Add project root to path
+# Add project root to sys.path so app modules import cleanly
 BASE_DIR = Path(__file__).resolve().parent.parent
-sys.path.append(str(BASE_DIR))
+if str(BASE_DIR) not in sys.path:
+    sys.path.insert(0, str(BASE_DIR))
 
 import numpy as np
 from app.config import settings
@@ -21,12 +22,12 @@ def is_ground_truth_match(chunk_data: dict, target_source: str, target_substring
 
 def run_dense_only(query: str, top_k: int) -> list[dict]:
     doc_ids = search_engine.retrieve_dense(query, top_k=top_k)
-    return [search_engine.chunks[did] for did in doc_ids]
+    return [search_engine.chunks[did] for did in doc_ids if 0 <= did < len(search_engine.chunks)]
 
 
 def run_sparse_only(query: str, top_k: int) -> list[dict]:
     doc_ids = search_engine.retrieve_sparse(query, top_k=top_k)
-    return [search_engine.chunks[did] for did in doc_ids]
+    return [search_engine.chunks[did] for did in doc_ids if 0 <= did < len(search_engine.chunks)]
 
 
 def run_hybrid_rerank(query: str, top_k: int) -> list[dict]:
@@ -45,6 +46,9 @@ def evaluate_pipeline(pipeline_fn, test_cases: list[dict], top_k: int) -> tuple[
       - MRR@K: Mean Reciprocal Rank (1/rank) of the first correct chunk
       - Latency: Average retrieval time per query in milliseconds
     """
+    if not test_cases:
+        return 0.0, 0.0, 0.0
+
     hits = 0
     reciprocal_ranks = []
     latencies = []
@@ -59,7 +63,6 @@ def evaluate_pipeline(pipeline_fn, test_cases: list[dict], top_k: int) -> tuple[
         latency_ms = (time.perf_counter() - start_time) * 1000.0
         latencies.append(latency_ms)
 
-        # Check rankings
         match_found = False
         for rank, chunk in enumerate(retrieved_chunks, start=1):
             if is_ground_truth_match(chunk, target_source, target_substring):
@@ -113,7 +116,7 @@ def main():
         print(f"{name:<38} | {hit_rate:>10.1f}% | {mrr:>10.3f} | {latency:>8.2f} ms")
 
     print("-" * 80)
-    print("\nBenchmark completed.")
+    print("\nBenchmark completed successfully.")
 
 
 if __name__ == "__main__":

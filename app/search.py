@@ -1,12 +1,15 @@
-import time
+import logging
 import pickle
-import numpy as np
+import time
 import faiss
+import numpy as np
 from rank_bm25 import BM25Okapi
-from sentence_transformers import SentenceTransformer, CrossEncoder
+from sentence_transformers import CrossEncoder, SentenceTransformer
 
 from app.config import settings
-from app.schemas import SearchResultItem, SearchResponse
+from app.schemas import SearchResponse, SearchResultItem
+
+logger = logging.getLogger("hybrid-rag-engine")
 
 
 class HybridSearchEngine:
@@ -27,7 +30,7 @@ class HybridSearchEngine:
 
     def load_resources(self):
         """Loads pre-built indices and neural models into memory."""
-        print("Initializing search engine resources...")
+        logger.info("Initializing search engine resources...")
 
         # 1. Load BM25 tokenized corpus and raw chunks
         if not settings.BM25_STORE_PATH.exists():
@@ -48,14 +51,14 @@ class HybridSearchEngine:
         self.faiss_index = faiss.read_index(str(settings.FAISS_INDEX_PATH))
 
         # 3. Load neural models
-        print(f"Loading Bi-Encoder: {settings.DENSE_MODEL_NAME}...")
+        logger.info(f"Loading Bi-Encoder: {settings.DENSE_MODEL_NAME}...")
         self.bi_encoder = SentenceTransformer(settings.DENSE_MODEL_NAME)
 
-        print(f"Loading Cross-Encoder: {settings.RERANKER_MODEL_NAME}...")
+        logger.info(f"Loading Cross-Encoder: {settings.RERANKER_MODEL_NAME}...")
         self.reranker = CrossEncoder(settings.RERANKER_MODEL_NAME)
 
         self._is_ready = True
-        print(f"Engine ready with {len(self.chunks)} chunks loaded.")
+        logger.info(f"Engine ready with {len(self.chunks)} chunks loaded.")
 
     @property
     def is_ready(self) -> bool:
@@ -68,18 +71,28 @@ class HybridSearchEngine:
     def retrieve_sparse(self, query: str, top_k: int) -> list[int]:
         """BM25 keyword search: returns list of doc_ids ordered by score."""
         tokens = query.lower().split()
+        if not tokens or not self.bm25_index:
+            return []
+
         scores = self.bm25_index.get_scores(tokens)
-        return np.argsort(scores)[::-1][:top_k].tolist()
+        safe_k = min(top_k, len(self.chunks))
+        return np.argsort(scores)[::-1][:safe_k].tolist()
 
     def retrieve_dense(self, query: str, top_k: int) -> list[int]:
         """FAISS dense vector search: returns list of doc_ids ordered by cosine similarity."""
+        if not self.bi_encoder or not self.faiss_index:
+            return []
+
         query_vec = self.bi_encoder.encode(
             [query],
             convert_to_numpy=True,
             normalize_embeddings=True
         )
-        _, indices = self.faiss_index.search(query_vec, top_k)
-        return indices[0].tolist()
+        safe_k = min(top_k, len(self.chunks))
+        _, indices = self.faiss_index.search(query_vec, safe_k)
+        
+        # Filter out invalid FAISS indices (-1 is returned if fewer results exist)
+        return [idx for idx in indices[0].tolist() if 0 <= idx < len(self.chunks)]
 
     def reciprocal_rank_fusion(
         self,
@@ -123,8 +136,17 @@ class HybridSearchEngine:
 
         # Step 2: Reciprocal Rank Fusion
         fused_candidate_ids = self.reciprocal_rank_fusion(sparse_candidates, dense_candidates)
-        # Take the top N candidates forward to the reranker
         candidate_subset = fused_candidate_ids[:first_stage_k]
+
+        # Early return if no candidates match
+        if not candidate_subset:
+            latency_ms = (time.perf_counter() - start_time) * 1000.0
+            return SearchResponse(
+                query=query,
+                total_results=0,
+                latency_ms=round(latency_ms, 2),
+                results=[]
+            )
 
         # Step 3: Stage 2 Cross-Encoder Reranking
         pairs = [[query, self.chunks[doc_id]["content"]] for doc_id in candidate_subset]

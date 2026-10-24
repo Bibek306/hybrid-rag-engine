@@ -1,14 +1,18 @@
 import pytest
 from fastapi.testclient import TestClient
 
+from app.config import settings
 from app.main import app
 from app.search import search_engine
-from app.config import settings
 
 
 @pytest.fixture(scope="session", autouse=True)
 def initialize_engine():
-    """Ensure search engine and models are loaded before test execution."""
+    """Ensure indices and neural models are loaded before running tests."""
+    if not settings.FAISS_INDEX_PATH.exists() or not settings.BM25_STORE_PATH.exists():
+        from scripts.indexer import build_indices
+        build_indices()
+
     if not search_engine.is_ready:
         search_engine.load_resources()
 
@@ -93,6 +97,23 @@ def test_search_endpoint_success(client):
     assert "rerank_score" in data["results"][0]
 
 
+def test_ask_endpoint_success(client):
+    """Tests POST /ask end-to-end RAG synthesis endpoint."""
+    payload = {
+        "query": "How do I fix CUDA_OUT_OF_MEMORY errors?",
+        "top_k": 2
+    }
+    response = client.post("/ask", json=payload)
+    assert response.status_code == 200
+
+    data = response.json()
+    assert data["query"] == payload["query"]
+    assert "answer" in data
+    assert len(data["answer"]) > 0
+    assert data["total_sources"] <= 2
+    assert len(data["sources"]) > 0
+
+
 def test_search_endpoint_validation_errors(client):
     """Tests that invalid inputs trigger HTTP 422 before reaching models."""
     # Query too short (min length is 2)
@@ -102,3 +123,7 @@ def test_search_endpoint_validation_errors(client):
     # Top-K out of bounds (max is 20)
     response_out_of_bounds = client.post("/search", json={"query": "valid query", "top_k": 50})
     assert response_out_of_bounds.status_code == 422
+
+    # Missing required query field
+    response_missing_field = client.post("/search", json={"top_k": 3})
+    assert response_missing_field.status_code == 422
